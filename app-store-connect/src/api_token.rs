@@ -25,6 +25,19 @@ struct ConnectTokenRequest {
 /// A JWT Token for use with App Store Connect API.
 pub type AppStoreConnectToken = String;
 
+/// Authentication mode for App Store Connect API.
+#[derive(Clone)]
+enum AuthMode {
+    /// JWT-based authentication using API key
+    ApiKey {
+        key_id: String,
+        issuer_id: String,
+        encoding_key: EncodingKey,
+    },
+    /// Direct ASP token (app-specific password) authentication
+    AspToken(String),
+}
+
 /// Represents a private key used to create JWT tokens for use with App Store Connect.
 ///
 /// See https://developer.apple.com/documentation/appstoreconnectapi/creating_api_keys_for_app_store_connect_api
@@ -43,9 +56,7 @@ pub type AppStoreConnectToken = String;
 /// at https://appstoreconnect.apple.com/access/api.
 #[derive(Clone)]
 pub struct ConnectTokenEncoder {
-    key_id: String,
-    issuer_id: String,
-    encoding_key: EncodingKey,
+    auth_mode: AuthMode,
 }
 
 impl ConnectTokenEncoder {
@@ -58,9 +69,11 @@ impl ConnectTokenEncoder {
         encoding_key: EncodingKey,
     ) -> Self {
         Self {
-            key_id,
-            issuer_id,
-            encoding_key,
+            auth_mode: AuthMode::ApiKey {
+                key_id,
+                issuer_id,
+                encoding_key,
+            },
         }
     }
 
@@ -120,11 +133,9 @@ impl ConnectTokenEncoder {
 
     /// Construct an instance from an ASP token (username/password flow).
     pub fn from_asp_token(asp_token: String) -> Self {
-        // Use dummy values for key_id and issuer_id, as ASP token is used directly.
+        log::debug!("Creating ConnectTokenEncoder with ASP token (direct auth mode)");
         Self {
-            key_id: String::new(),
-            issuer_id: String::new(),
-            encoding_key: EncodingKey::from_secret(asp_token.as_bytes()),
+            auth_mode: AuthMode::AspToken(asp_token),
         }
     }
 
@@ -132,39 +143,53 @@ impl ConnectTokenEncoder {
     ///
     /// Using the private key and key metadata bound to this instance, we issue a new JWT
     /// for the requested duration.
+    ///
+    /// For ASP token authentication, this returns the ASP token directly without JWT encoding.
     pub fn new_token(&self, duration: u64) -> Result<AppStoreConnectToken> {
-        log::debug!("Generating JWT token");
-        log::debug!("  Key ID: {}", if self.key_id.is_empty() { "(ASP token)" } else { &self.key_id });
-        log::debug!("  Issuer ID: {}", if self.issuer_id.is_empty() { "(ASP token)" } else { &self.issuer_id });
-        log::debug!("  Duration: {}s", duration);
+        match &self.auth_mode {
+            AuthMode::AspToken(token) => {
+                log::debug!("Using ASP token directly (no JWT encoding needed)");
+                Ok(token.clone())
+            }
+            AuthMode::ApiKey {
+                key_id,
+                issuer_id,
+                encoding_key,
+            } => {
+                log::debug!("Generating JWT token from API key");
+                log::debug!("  Key ID: {}", key_id);
+                log::debug!("  Issuer ID: {}", issuer_id);
+                log::debug!("  Duration: {}s", duration);
 
-        let header = Header {
-            kid: Some(self.key_id.clone()),
-            alg: Algorithm::ES256,
-            ..Default::default()
-        };
+                let header = Header {
+                    kid: Some(key_id.clone()),
+                    alg: Algorithm::ES256,
+                    ..Default::default()
+                };
 
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("calculating UNIX time should never fail")
-            .as_secs();
+                let now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("calculating UNIX time should never fail")
+                    .as_secs();
 
-        let claims = ConnectTokenRequest {
-            iss: self.issuer_id.clone(),
-            iat: now,
-            exp: now + duration,
-            aud: "appstoreconnect-v1".to_string(),
-        };
+                let claims = ConnectTokenRequest {
+                    iss: issuer_id.clone(),
+                    iat: now,
+                    exp: now + duration,
+                    aud: "appstoreconnect-v1".to_string(),
+                };
 
-        log::debug!("Encoding JWT with algorithm: {:?}", header.alg);
-        let token = jsonwebtoken::encode(&header, &claims, &self.encoding_key).map_err(|e| {
-            log::error!("Failed to encode JWT token: {}", e);
-            e
-        })?;
+                log::debug!("Encoding JWT with algorithm: {:?}", header.alg);
+                let token = jsonwebtoken::encode(&header, &claims, encoding_key).map_err(|e| {
+                    log::error!("Failed to encode JWT token: {}", e);
+                    e
+                })?;
 
-        log::debug!("JWT token generated successfully (length: {} bytes)", token.len());
+                log::debug!("JWT token generated successfully (length: {} bytes)", token.len());
 
-        Ok(token)
+                Ok(token)
+            }
+        }
     }
 }
 
