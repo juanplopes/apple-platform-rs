@@ -170,6 +170,7 @@ impl AppStoreConnectClient {
         sha256: &str,
         submission_name: &str,
     ) -> Result<NewSubmissionResponse> {
+        log::debug!("Getting authentication token for Notary API");
         let token = self.get_token()?;
 
         let body = NewSubmissionRequest {
@@ -177,6 +178,12 @@ impl AppStoreConnectClient {
             sha256: sha256.to_string(),
             submission_name: submission_name.to_string(),
         };
+
+        log::debug!("Preparing Notary API submission request");
+        log::debug!("  Submission name: {}", submission_name);
+        log::debug!("  SHA256: {}", sha256);
+        log::debug!("  URL: {}", APPLE_NOTARY_SUBMIT_SOFTWARE_URL);
+
         let req = self
             .client
             .post(APPLE_NOTARY_SUBMIT_SOFTWARE_URL)
@@ -185,13 +192,25 @@ impl AppStoreConnectClient {
             .header("Content-Type", "application/json")
             .json(&body);
 
-        Ok(self.send_request(req)?.json()?)
+        log::debug!("Sending Notary API submission request");
+        let response = self.send_request(req)?;
+
+        log::debug!("Parsing Notary API submission response");
+        let parsed_response: NewSubmissionResponse = response.json()?;
+        log::debug!("Notary API submission response parsed successfully");
+        log::debug!("  Submission ID: {}", parsed_response.data.id);
+        log::debug!("  Bucket: {}", parsed_response.data.attributes.bucket);
+        log::debug!("  Object: {}", parsed_response.data.attributes.object);
+
+        Ok(parsed_response)
     }
 
     /// Fetch the status of a Notary API submission.
     pub fn get_submission(&self, submission_id: &str) -> Result<SubmissionResponse> {
+        log::debug!("Getting authentication token for submission status check");
         let token = self.get_token()?;
 
+        log::debug!("Fetching submission status for ID: {}", submission_id);
         let req = self
             .client
             .get(format!(
@@ -200,7 +219,16 @@ impl AppStoreConnectClient {
             .bearer_auth(token)
             .header("Accept", "application/json");
 
-        Ok(self.send_request(req)?.json()?)
+        log::debug!("Sending submission status request");
+        let response = self.send_request(req)?;
+
+        log::debug!("Parsing submission status response");
+        let parsed_response: SubmissionResponse = response.json()?;
+        log::debug!("Submission status: {}", parsed_response.data.attributes.status);
+        log::debug!("  Created: {}", parsed_response.data.attributes.created_date);
+        log::debug!("  Name: {}", parsed_response.data.attributes.name);
+
+        Ok(parsed_response)
     }
 
     pub fn list_submissions(&self) -> Result<ListSubmissionResponse> {
@@ -216,8 +244,10 @@ impl AppStoreConnectClient {
 
     /// Fetch details about a single completed notarization.
     pub fn get_submission_log(&self, submission_id: &str) -> Result<Value> {
+        log::debug!("Getting authentication token for submission log retrieval");
         let token = self.get_token()?;
 
+        log::debug!("Fetching submission log URL for ID: {}", submission_id);
         let req = self
             .client
             .get(format!(
@@ -226,10 +256,13 @@ impl AppStoreConnectClient {
             .bearer_auth(token)
             .header("Accept", "application/json");
 
+        log::debug!("Sending submission log request");
         let res: SubmissionLogResponse = self.send_request(req)?.json()?;
 
         let url = res.data.attributes.developer_log_url;
+        log::debug!("Fetching developer log from URL: {}", url);
         let logs = self.client.get(url).send()?.json::<Value>()?;
+        log::debug!("Successfully retrieved submission log");
 
         Ok(logs)
     }

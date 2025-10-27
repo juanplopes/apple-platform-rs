@@ -69,7 +69,11 @@ impl AppStoreConnectClient {
 
         // TODO need to handle token expiration.
         if token.is_none() {
+            log::debug!("Generating new App Store Connect authentication token (TTL: 300s)");
             token.replace(self.connect_token.new_token(300)?);
+            log::debug!("Authentication token generated successfully");
+        } else {
+            log::debug!("Reusing existing App Store Connect authentication token");
         }
 
         Ok(token.as_ref().unwrap().clone())
@@ -84,15 +88,25 @@ impl AppStoreConnectClient {
 
         let response = self.client.execute(request)?;
 
+        let status = response.status();
+        log::debug!("Response status: {}", status);
+
         if response.status().is_success() {
             Ok(response)
         } else {
             let body = response.bytes()?;
 
+            log::error!("API request failed with status {}", status);
+            log::error!("Request: {} {}", method, url);
+
             let message = if let Ok(value) = serde_json::from_slice::<Value>(body.as_ref()) {
-                serde_json::to_string_pretty(&value)?
+                let formatted = serde_json::to_string_pretty(&value)?;
+                log::error!("Response body: {}", formatted);
+                formatted
             } else {
-                String::from_utf8_lossy(body.as_ref()).into()
+                let text = String::from_utf8_lossy(body.as_ref()).into();
+                log::error!("Response body (raw): {}", text);
+                text
             };
 
             Err(AppStoreConnectError {

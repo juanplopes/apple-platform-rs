@@ -19,7 +19,7 @@ use {
     apple_bundles::DirectoryBundle,
     aws_sdk_s3::config::{Credentials, Region},
     aws_smithy_types::byte_stream::ByteStream,
-    log::warn,
+    log::{error, warn},
     sha2::Digest,
     std::{
         fs::File,
@@ -345,16 +345,29 @@ impl Notarizer {
         submission: &notary_api::NewSubmissionResponse,
         upload: UploadKind,
     ) -> Result<(), AppleCodesignError> {
+        warn!("creating tokio runtime for async S3 upload");
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
+
+        warn!("preparing upload data stream");
         let bytestream = match upload {
-            UploadKind::Data(data) => ByteStream::from(data),
-            UploadKind::Path(path) => rt.block_on(ByteStream::from_path(path))?,
+            UploadKind::Data(data) => {
+                warn!("using in-memory data (size: {} bytes)", data.len());
+                ByteStream::from(data)
+            },
+            UploadKind::Path(path) => {
+                warn!("reading file from path: {}", path.display());
+                rt.block_on(ByteStream::from_path(path))?
+            },
         };
 
         // upload using s3 api
         warn!("resolving AWS S3 configuration from Apple-provided credentials");
+        warn!("  AWS region: us-west-2");
+        warn!("  S3 bucket: {}", submission.data.attributes.bucket);
+        warn!("  S3 object key: {}", submission.data.attributes.object);
+
         let config = rt.block_on(
             aws_config::defaults(aws_config::BehaviorVersion::latest())
                 .credentials_provider(Credentials::new(
@@ -371,6 +384,7 @@ impl Notarizer {
                 .load(),
         );
 
+        warn!("creating AWS S3 client");
         let s3_client = aws_sdk_s3::Client::new(&config);
 
         warn!(
@@ -383,6 +397,7 @@ impl Notarizer {
         // Unfortunately, aws-sdk-s3 does not have a simple upload_file helper
         // like it does in other languages.
         // See https://github.com/awslabs/aws-sdk-rust/issues/494
+        warn!("initiating S3 PUT object operation");
         let fut = s3_client
             .put_object()
             .bucket(submission.data.attributes.bucket.clone())
@@ -390,7 +405,9 @@ impl Notarizer {
             .body(bytestream)
             .send();
 
+        warn!("executing S3 upload (this may take some time for large files)...");
         rt.block_on(fut).map_err(|e| {
+            error!("S3 upload failed: {}", e);
             AppleCodesignError::AwsS3PutObject(
                 aws_smithy_types::error::display::DisplayErrorContext(e),
             )

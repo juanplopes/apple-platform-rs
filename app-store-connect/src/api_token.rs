@@ -133,6 +133,11 @@ impl ConnectTokenEncoder {
     /// Using the private key and key metadata bound to this instance, we issue a new JWT
     /// for the requested duration.
     pub fn new_token(&self, duration: u64) -> Result<AppStoreConnectToken> {
+        log::debug!("Generating JWT token");
+        log::debug!("  Key ID: {}", if self.key_id.is_empty() { "(ASP token)" } else { &self.key_id });
+        log::debug!("  Issuer ID: {}", if self.issuer_id.is_empty() { "(ASP token)" } else { &self.issuer_id });
+        log::debug!("  Duration: {}s", duration);
+
         let header = Header {
             kid: Some(self.key_id.clone()),
             alg: Algorithm::ES256,
@@ -151,7 +156,13 @@ impl ConnectTokenEncoder {
             aud: "appstoreconnect-v1".to_string(),
         };
 
-        let token = jsonwebtoken::encode(&header, &claims, &self.encoding_key)?;
+        log::debug!("Encoding JWT with algorithm: {:?}", header.alg);
+        let token = jsonwebtoken::encode(&header, &claims, &self.encoding_key).map_err(|e| {
+            log::error!("Failed to encode JWT token: {}", e);
+            e
+        })?;
+
+        log::debug!("JWT token generated successfully (length: {} bytes)", token.len());
 
         Ok(token)
     }
