@@ -397,6 +397,9 @@ pub enum AppleCodesignError {
 
     #[error("environment constraints: {0}")]
     EnvironmentConstraint(String),
+
+    #[error("other error: {0}")]
+    Other(String),
 }
 
 /// Result type for this library.

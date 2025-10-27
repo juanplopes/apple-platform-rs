@@ -132,13 +132,31 @@ struct NotaryApi {
     #[arg(long, requires = "api_issuer")]
     /// App Store Connect API Key ID
     api_key: Option<String>,
+
+    /// App Store Connect username (email address)
+    #[arg(long = "asc-username", group = "source")]
+    asc_username: Option<String>,
+
+    /// App Store Connect password (app-specific password)
+    #[arg(long = "asc-password", group = "source")]
+    asc_password: Option<String>,
+
+    /// App Store Connect Team ID
+    #[arg(long = "asc-team-id", group = "source")]
+    asc_team_id: Option<String>,
 }
 
 #[cfg(feature = "notarize")]
 impl NotaryApi {
     /// Resolve a notarizer from arguments.
     fn notarizer(&self) -> Result<Notarizer, AppleCodesignError> {
-        if let Some(api_key_path) = &self.api_key_path {
+        if let (Some(email), Some(password), Some(team_id)) = (
+            &self.asc_username,
+            &self.asc_password,
+            &self.asc_team_id,
+        ) {
+            Ok(Notarizer::from_username_password(email, password, team_id))
+        } else if let Some(api_key_path) = &self.api_key_path {
             Notarizer::from_api_key(api_key_path)
         } else if let (Some(issuer), Some(key)) = (&self.api_issuer, &self.api_key) {
             Notarizer::from_api_key_id(issuer, key)
@@ -2033,7 +2051,7 @@ enum Subcommands {
     /// `.crt` and `.key` appended to the value provided.
     ///
     /// When the certificate is written to a file, it isn't printed to stdout.
-    GenerateSelfSignedCertificate(GenerateSelfSignedCertificate),
+    GenerateSelfSignedCertificate(GenerateCertificateSigningRequest),
 
     /// Export Apple CA certificates from the macOS Keychain
     KeychainExportCertificateChain(KeychainExportCertificateChain),
@@ -2248,8 +2266,8 @@ enum Subcommands {
     ///
     /// Designated code requirements can be specified via --code-requirements-path.
     ///
-    /// This file MUST contain a binary/compiled code requirements expression. We do
-    /// not (yet) support parsing the human-friendly code requirements DSL. A
+    /// This file MUST contain a binary/compiled code requirements expression. We do not
+    /// (yet) support parsing the human-friendly code requirements DSL. A
     /// binary/compiled file can be produced via Apple's `csreq` tool. e.g.
     /// `csreq -r '=<expression>' -b /output/path`. If code requirements data is
     /// specified, it will be parsed and displayed as part of signing to ensure it

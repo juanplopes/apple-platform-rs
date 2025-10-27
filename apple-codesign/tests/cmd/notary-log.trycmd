@@ -35,6 +35,15 @@ Options:
   -v, --verbose...
           Increase logging verbosity. Can be specified multiple times
 
+      --asc-username <ASC_USERNAME>
+          App Store Connect username (email address)
+
+      --asc-password <ASC_PASSWORD>
+          App Store Connect password (app-specific password)
+
+      --asc-team-id <ASC_TEAM_ID>
+          App Store Connect Team ID
+
   -h, --help
           Print help (see a summary with '-h')
 

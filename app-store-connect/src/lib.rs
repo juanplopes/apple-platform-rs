@@ -52,6 +52,18 @@ impl AppStoreConnectClient {
         })
     }
 
+    pub fn from_username_password(email: String, password: String, team_id: String, asp_token: String) -> Result<Self> {
+        let client = ClientBuilder::default()
+            .user_agent("asconnect crate (https://crates.io/crates/asconnect)")
+            .build()?;
+        let connect_token = ConnectTokenEncoder::from_asp_token(asp_token.clone());
+        Ok(Self {
+            client,
+            connect_token,
+            token: Mutex::new(None),
+        })
+    }
+
     pub fn get_token(&self) -> Result<String> {
         let mut token = self.token.lock().unwrap();
 
@@ -99,4 +111,11 @@ pub struct AppStoreConnectError {
     method: String,
     url: String,
     message: String,
+}
+
+pub struct UsernamePasswordAuth {
+    pub email: String,
+    pub password: String,
+    pub team_id: String,
+    pub asp_token: String,
 }

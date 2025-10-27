@@ -113,8 +113,8 @@ need to provide your own requirements.
 
 Designated code requirements can be specified via --code-requirements-path.
 
-This file MUST contain a binary/compiled code requirements expression. We do
-not (yet) support parsing the human-friendly code requirements DSL. A
+This file MUST contain a binary/compiled code requirements expression. We do not
+(yet) support parsing the human-friendly code requirements DSL. A
 binary/compiled file can be produced via Apple's `csreq` tool. e.g.
 `csreq -r '=<expression>' -b /output/path`. If code requirements data is
 specified, it will be parsed and displayed as part of signing to ensure it

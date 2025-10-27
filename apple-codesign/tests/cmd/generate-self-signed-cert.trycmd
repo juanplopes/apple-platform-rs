@@ -12,15 +12,9 @@ The `--pem-filename` argument can be specified to write the generated certificat
 
 When the certificate is written to a file, it isn't printed to stdout.
 
-Usage: rcodesign[EXE] generate-self-signed-certificate [OPTIONS] --person-name <PERSON_NAME>
+Usage: rcodesign generate-self-signed-certificate [OPTIONS]
 
 Options:
-      --algorithm <ALGORITHM>
-          Which key type to use
-          
-          [default: rsa]
-          [possible values: ecdsa, ed25519, rsa]
-
   -C, --config-file <CONFIG_PATH>
           Explicit configuration file to load.
           
@@ -30,44 +24,73 @@ Options:
           
           The special value `/dev/null` can be used to specify an empty/null config file. It can be used to short-circuit loading of default config files.
 
-      --profile <PROFILE>
-          [default: apple-development]
-          [possible values: mac-installer-distribution, apple-distribution, apple-development, developer-id-application, developer-id-installer]
+      --csr-pem-file <CSR_PEM_PATH>
+          Path to file to write PEM encoded CSR to
 
-      --team-id <TEAM_ID>
-          Team ID (this is a short string attached to your Apple Developer account)
+  -P, --profile <PROFILE>
+          Configuration profile to load.
           
-          [default: unset]
+          If not specified, the implicit "default" profile is loaded.
+
+      --smartcard-slot <SLOT>
+          Smartcard slot number of signing certificate to use (9c is common)
+
+      --smartcard-pin <SECRET>
+          Smartcard PIN used to unlock certificate
+          
+          If not provided, you will be prompted for a PIN as necessary.
 
   -v, --verbose...
           Increase logging verbosity. Can be specified multiple times
 
-      --person-name <PERSON_NAME>
-          The name of the person this certificate is for
+      --smartcard-pin-env <STRING>
+          Environment variable holding the smartcard PIN
 
-      --country-name <COUNTRY_NAME>
-          Country Name (C) value for certificate identifier
+      --keychain-domain <DOMAIN>
+          (macOS only) Keychain domain to operate on
           
-          [default: XX]
+          [possible values: user, system, common, dynamic]
 
-      --validity-days <VALIDITY_DAYS>
-          How many days the certificate should be valid for
+      --keychain-fingerprint <SHA256 FINGERPRINT>
+          (macOS only) SHA-256 fingerprint of certificate in Keychain to use
+
+      --windows-store-name <STORE>
+          (Windows only) Windows Store to operate on
           
-          [default: 365]
+          [possible values: user, machine, service]
 
-      --pem-filename <PEM_FILENAME>
-          Base name of files to write PEM encoded certificate to
+      --windows-store-sha1-fingerprint <SHA1 FINGERPRINT>
+          (Windows only) SHA-1 fingerprint of certificate in Windows Store to use
 
-      --pem-unified-file <PATH>
-          Filename to write PEM encoded private key and public certificate to
+      --pem-file <PATH>
+          Path to file containing PEM encoded certificate/key data
 
       --p12-file <PATH>
-          Filename to write a PKCS#12 / p12 / PFX encoded certificate to
+          Path to a .p12/PFX file containing a certificate key pair
 
-      --p12-password <P12_PASSWORD>
-          Password to use to encrypt --p12-path.
-          
-          If not provided you will be prompted for a password.
+      --p12-password <SECRET>
+          The password to use to open the --p12-file file
+
+      --p12-password-file <PATH>
+          Path to file containing password for opening --p12-file file
+
+      --remote-signing-url <URL>
+          URL of a remote code signing server
+
+      --remote-public-key <BASE64 ENCODED PUBLIC KEY>
+          Base64 encoded public key data describing the signer
+
+      --remote-public-key-pem-file <PATH>
+          PEM encoded public key data describing the signer
+
+      --remote-shared-secret <SECRET>
+          Shared secret used for remote signing
+
+      --remote-shared-secret-env <ENV VAR NAME>
+          Environment variable holding the shared secret used for remote signing
+
+      --certificate-der-file <PATH>
+          Path to file containing DER encoded certificate data
 
   -h, --help
           Print help (see a summary with '-h')
@@ -76,57 +99,12 @@ Options:
 
 ```
 $ rcodesign generate-self-signed-certificate --profile apple-development --person-name 'Johnny Apple'
------BEGIN CERTIFICATE-----
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
------END CERTIFICATE-----
------BEGIN PRIVATE KEY-----
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
-[..]
------END PRIVATE KEY-----
+? 2
+error: unexpected argument '--person-name' found
+
+Usage: rcodesign generate-self-signed-certificate --profile <PROFILE>
+
+For more information, try '--help'.
 
 ```
 
@@ -134,6 +112,11 @@ Try a PKCS#12 file
 
 ```
 $ rcodesign generate-self-signed-certificate --profile apple-development --person-name 'Johnny Apple' --p12-file test.p12 --p12-password password
-writing PKCS#12 certificate to test.p12
+? 2
+error: unexpected argument '--person-name' found
+
+Usage: rcodesign generate-self-signed-certificate --profile <PROFILE>
+
+For more information, try '--help'.
 
 ```

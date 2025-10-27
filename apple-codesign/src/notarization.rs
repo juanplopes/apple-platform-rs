@@ -28,6 +28,24 @@ use {
         time::Duration,
     },
 };
+use base64::{engine::general_purpose, Engine as _};
+use reqwest::blocking::Client;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct AspResponse {
+    data: AspData,
+}
+
+#[derive(Deserialize)]
+struct AspData {
+    attributes: AspAttributes,
+}
+
+#[derive(Deserialize)]
+struct AspAttributes {
+    token: String,
+}
 
 fn digest<H: Digest, R: Read>(reader: &mut R) -> Result<(u64, Vec<u8>), AppleCodesignError> {
     let mut hasher = H::new();
@@ -136,8 +154,19 @@ enum UploadKind {
 /// and react to that upload, then downloading a notarization "ticket" from Apple
 /// and incorporating it into the entity being signed.
 #[derive(Clone)]
+pub enum NotarizerAuth {
+    ApiKey(ConnectTokenEncoder),
+    UsernamePassword {
+        email: String,
+        password: String,
+        team_id: String,
+        asp_token: Option<String>,
+    },
+}
+
+#[derive(Clone)]
 pub struct Notarizer {
-    token_encoder: ConnectTokenEncoder,
+    auth: NotarizerAuth,
 
     /// How long to wait between polling the server for upload status.
     wait_poll_interval: Duration,
@@ -145,9 +174,9 @@ pub struct Notarizer {
 
 impl Notarizer {
     /// Construct a new instance.
-    fn new(token_encoder: ConnectTokenEncoder) -> Self {
+    fn new(auth: NotarizerAuth) -> Self {
         Self {
-            token_encoder,
+            auth,
             wait_poll_interval: Duration::from_secs(3),
         }
     }
@@ -157,15 +186,30 @@ impl Notarizer {
         issuer_id: impl ToString,
         key_id: impl ToString,
     ) -> Result<Self, AppleCodesignError> {
-        Ok(Self::new(ConnectTokenEncoder::from_api_key_id(
-            key_id.to_string(),
-            issuer_id.to_string(),
-        )?))
+        Ok(Self::new(NotarizerAuth::ApiKey(
+            ConnectTokenEncoder::from_api_key_id(key_id.to_string(), issuer_id.to_string())?
+        )))
     }
 
     /// Construct an instance from a file containing a JSON encoded API key.
     pub fn from_api_key(path: &Path) -> Result<Self, AppleCodesignError> {
-        Ok(Self::new(UnifiedApiKey::from_json_path(path)?.try_into()?))
+        Ok(Self::new(NotarizerAuth::ApiKey(
+            UnifiedApiKey::from_json_path(path)?.try_into()?
+        )))
+    }
+
+    /// Construct an instance from username, password, and team ID.
+    pub fn from_username_password(
+        email: impl Into<String>,
+        password: impl Into<String>,
+        team_id: impl Into<String>,
+    ) -> Self {
+        Self::new(NotarizerAuth::UsernamePassword {
+            email: email.into(),
+            password: password.into(),
+            team_id: team_id.into(),
+            asp_token: None,
+        })
     }
 
     /// Attempt to notarize an asset defined by a filesystem path.
@@ -255,7 +299,24 @@ impl Notarizer {
 
 impl Notarizer {
     fn client(&self) -> Result<AppStoreConnectClient, AppleCodesignError> {
-        Ok(AppStoreConnectClient::new(self.token_encoder.clone())?)
+        match &self.auth {
+            NotarizerAuth::ApiKey(token_encoder) => {
+                Ok(AppStoreConnectClient::new(token_encoder.clone())?)
+            }
+            NotarizerAuth::UsernamePassword { email, password, team_id, asp_token } => {
+                let mut token = asp_token.clone();
+                if token.is_none() {
+                    let asp = Self::fetch_asp_token(email, password, team_id)?;
+                    token = Some(asp);
+                }
+                Ok(AppStoreConnectClient::from_username_password(
+                    email.clone(),
+                    password.clone(),
+                    team_id.clone(),
+                    token.unwrap(),
+                )?)
+            }
+        }
     }
 
     /// Tell the notary service to expect an upload to S3.
@@ -439,5 +500,26 @@ impl Notarizer {
         &self,
     ) -> Result<notary_api::ListSubmissionResponse, AppleCodesignError> {
         Ok(self.client()?.list_submissions()?)
+    }
+
+    fn fetch_asp_token(email: &str, password: &str, team_id: &str) -> Result<String, AppleCodesignError> {
+        let auth = general_purpose::STANDARD.encode(format!("{}:{}", email, password));
+        let client = Client::new();
+        let resp = client
+            .get("https://appstoreconnect.apple.com/notary/v2/asp?")
+            .header("X-Developer-Team-ID", team_id)
+            .header("X-Developer-Authorization", format!("Basic {}", auth))
+            .header("Content-Type", "application/json")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("User-Agent", "notarytool/38 CFNetwork/3826.500.131 Darwin/24.5.0")
+            .send()
+            .map_err(|e| AppleCodesignError::Other(format!("HTTP error: {}", e)))?
+            .error_for_status()
+            .map_err(|e| AppleCodesignError::Other(format!("HTTP status error: {}", e)))?
+            .json::<AspResponse>()
+            .map_err(|e| AppleCodesignError::Other(format!("JSON error: {}", e)))?;
+        Ok(resp.data.attributes.token)
     }
 }

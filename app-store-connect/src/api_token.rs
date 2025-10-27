@@ -118,6 +118,16 @@ impl ConnectTokenEncoder {
         Err(MissingApiKey.into())
     }
 
+    /// Construct an instance from an ASP token (username/password flow).
+    pub fn from_asp_token(asp_token: String) -> Self {
+        // Use dummy values for key_id and issuer_id, as ASP token is used directly.
+        Self {
+            key_id: String::new(),
+            issuer_id: String::new(),
+            encoding_key: EncodingKey::from_secret(asp_token.as_bytes()),
+        }
+    }
+
     /// Mint a new JWT token.
     ///
     /// Using the private key and key metadata bound to this instance, we issue a new JWT
