@@ -134,15 +134,15 @@ struct NotaryApi {
     api_key: Option<String>,
 
     /// App Store Connect username (email address)
-    #[arg(long = "asc-username", group = "source")]
+    #[arg(long = "asc-username")]
     asc_username: Option<String>,
 
     /// App Store Connect password (app-specific password)
-    #[arg(long = "asc-password", group = "source")]
+    #[arg(long = "asc-password")]
     asc_password: Option<String>,
 
     /// App Store Connect Team ID
-    #[arg(long = "asc-team-id", group = "source")]
+    #[arg(long = "asc-team-id")]
     asc_team_id: Option<String>,
 }
 

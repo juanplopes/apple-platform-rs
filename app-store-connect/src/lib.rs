@@ -52,7 +52,7 @@ impl AppStoreConnectClient {
         })
     }
 
-    pub fn from_username_password(email: String, password: String, team_id: String, asp_token: String) -> Result<Self> {
+    pub fn from_username_password(_email: String, _password: String, _team_id: String, asp_token: String) -> Result<Self> {
         let client = ClientBuilder::default()
             .user_agent("asconnect crate (https://crates.io/crates/asconnect)")
             .build()?;

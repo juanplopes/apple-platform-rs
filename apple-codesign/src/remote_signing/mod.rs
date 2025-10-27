@@ -218,11 +218,11 @@ impl ServerMessage {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(untagged)]
 enum ServerPayload {
-    Error(ServerError),
-    Greeting(ServerGreeting),
-    SessionJoined(ServerJoined),
-    PeerMessage(ServerPeerMessage),
-    SessionClosed(ServerSessionClosed),
+    Error(()),
+    Greeting(()),
+    SessionJoined(()),
+    PeerMessage(()),
+    SessionClosed(()),
 }
 
 #[derive(Clone, Debug, Deserialize)]
